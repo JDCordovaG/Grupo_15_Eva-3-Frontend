@@ -2,6 +2,7 @@ const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').re
 
 export async function solicitar(ruta, opciones = {}) {
   const token = localStorage.getItem('buildmypc_token');
+  const rutaPublicaAuth = ruta === '/v1/auths' || ruta === '/v1/auths/login';
   const { headers: headersOpcionales, ...restoOpciones } = opciones;
   let respuesta;
 
@@ -10,7 +11,7 @@ export async function solicitar(ruta, opciones = {}) {
       ...restoOpciones,
       headers: {
         ...(restoOpciones.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token && !rutaPublicaAuth ? { Authorization: `Bearer ${token}` } : {}),
         ...headersOpcionales
       }
     });

@@ -36,6 +36,7 @@ export const componentesService = {
           ...componente,
           ...tecnico,
           id: componente.id,
+          technicalId: tecnico.id,
           tipo,
           marca: componente.marca,
           modelo: componente.modelo,

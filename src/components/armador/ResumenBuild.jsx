@@ -1,6 +1,6 @@
 import { calcularConsumoTotal, calcularSubtotal } from '../../utils/reglasCompatibilidad';
 
-export default function ResumenBuild({ build = {}, alVerCompatibilidad, reglas }) {
+export default function ResumenBuild({ build = {}, alVerCompatibilidad, alGuardarBuild, reglas }) {
   const consumoTotal = calcularConsumoTotal(build.CPU, build.GPU);
   const total = calcularSubtotal(build);
   const estaCompleto = Boolean(build.CPU && build.GPU && build.Placa && build.RAM && build.Fuente);
@@ -41,6 +41,7 @@ export default function ResumenBuild({ build = {}, alVerCompatibilidad, reglas }
       >
         Validar Compatibilidad
       </button>
+      {alGuardarBuild && <button className="btn btn-outline-info w-100 py-2 mt-2" disabled={!estaCompleto} onClick={alGuardarBuild}><i className="bi bi-bookmark-plus me-2" />Guardar en Mis builds</button>}
       {!estaCompleto && <small className="text-error d-block mt-2">Selecciona todos los componentes para validar.</small>}
     </div>
   );

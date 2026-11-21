@@ -4,16 +4,21 @@ import { solicitar } from './apiClient';
 
 export const authService = {
   async iniciarSesion(email, password) {
-    // El endpoint JWT esperado recibe credenciales y responde { token, ...usuario }.
     const respuesta = await solicitar('/v1/auths/login', {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
     const token = respuesta.token || respuesta.accessToken;
-    if (!token) throw new Error('El servidor no devolvió un token de acceso.');
 
-    const sesion = { ...respuesta, token, email: respuesta.email || email };
-    localStorage.setItem(TOKEN_KEY, token);
+    const usuario = respuesta.usuario || respuesta.user || {};
+    const sesion = {
+      ...respuesta,
+      ...(token ? { token } : {}),
+      email: usuario.email || respuesta.email || email,
+      usuarioId: usuario.id || usuario.userId || respuesta.usuarioId || respuesta.userId || respuesta.id || null
+    };
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
     localStorage.setItem(SESSION_KEY, JSON.stringify(sesion));
     return sesion;
   },
@@ -25,12 +30,18 @@ export const authService = {
     try {
       const sesion = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
       const token = localStorage.getItem(TOKEN_KEY);
-      return token && sesion ? { ...sesion, token } : null;
+      return sesion ? { ...sesion, ...(token ? { token } : {}) } : null;
     } catch {
       return null;
     }
   },
   obtenerToken: () => localStorage.getItem(TOKEN_KEY),
+  obtenerUsuarioId(sesion = authService.obtenerSesion()) {
+    if (!sesion) return null;
+    const usuario = sesion.usuario || sesion.user || {};
+    const id = usuario.id || usuario.userId || sesion.usuarioId || sesion.userId;
+    return id == null ? null : Number(id);
+  },
   async registrar({ email, password, rol = 'CLIENTE' }) {
     return solicitar('/v1/auths', {
       method: 'POST',
