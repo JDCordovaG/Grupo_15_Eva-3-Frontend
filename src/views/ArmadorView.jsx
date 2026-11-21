@@ -1,7 +1,7 @@
 import TarjetaComponente from '../components/catalogo/TarjetaComponente';
 import ResumenBuild from '../components/armador/ResumenBuild';
 
-export default function ArmadorView({ componentes, build, alSeleccionar, alVerCompatibilidad, alGuardarBuild }) {
+export default function ArmadorView({ componentes, build, alSeleccionar, alVerCompatibilidad, alGuardarBuild, errorGuardado, mensajeGuardado, guardando, alVerMisBuilds }) {
   const tipos = ['CPU', 'GPU', 'Placa', 'RAM', 'Fuente'];
 
   return (
@@ -27,7 +27,15 @@ export default function ArmadorView({ componentes, build, alSeleccionar, alVerCo
         </div>
         <div className="col-lg-4">
           <div className="sticky-top" style={{ top: '90px' }}>
-            <ResumenBuild build={build} alVerCompatibilidad={alVerCompatibilidad} alGuardarBuild={alGuardarBuild} />
+            <ResumenBuild
+              build={build}
+              alVerCompatibilidad={alVerCompatibilidad}
+              alGuardarBuild={alGuardarBuild}
+              errorGuardado={errorGuardado}
+              mensajeGuardado={mensajeGuardado}
+              guardando={guardando}
+              alVerMisBuilds={alVerMisBuilds}
+            />
           </div>
         </div>
       </div>

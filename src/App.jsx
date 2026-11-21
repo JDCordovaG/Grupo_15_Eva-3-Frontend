@@ -16,19 +16,35 @@ import { buildsService } from './services/buildsService';
 import { calcularSubtotal } from './utils/reglasCompatibilidad';
 import './App.css';
 
+const crearBuildVacia = () => ({ CPU: null, GPU: null, Placa: null, RAM: null, Fuente: null });
+
 export default function App() {
   const [vista, setVista] = useState(() => authService.obtenerSesion() ? 'inicio' : 'autenticacion');
   const [componentes, setComponentes] = useState([]);
   const [cargandoComponentes, setCargandoComponentes] = useState(false);
   const [errorComponentes, setErrorComponentes] = useState('');
   const [recargaCatalogo, setRecargaCatalogo] = useState(0);
-  const [build, setBuild] = useState({ CPU: null, GPU: null, Placa: null, RAM: null, Fuente: null });
+  const [build, setBuild] = useState(crearBuildVacia);
   const [componenteSeleccionado, setComponenteSeleccionado] = useState(null);
   const [sesion, setSesion] = useState(() => authService.obtenerSesion());
   const [errorGuardarBuild, setErrorGuardarBuild] = useState('');
+  const [mensajeGuardarBuild, setMensajeGuardarBuild] = useState('');
+  const [guardandoBuild, setGuardandoBuild] = useState(false);
   const [recargaBuilds, setRecargaBuilds] = useState(0);
   const [buildEditandoId, setBuildEditandoId] = useState(null);
   const usuarioId = authService.obtenerUsuarioId(sesion);
+
+  const handleNavegarMenu = (vistaNueva) => {
+    if (vistaNueva === vista) return;
+    const buildVacia = crearBuildVacia();
+    setBuild(buildVacia);
+    persistenciaService.guardarBuildActual(buildVacia);
+    setComponenteSeleccionado(null);
+    setBuildEditandoId(null);
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
+    setVista(vistaNueva);
+  };
 
   useEffect(() => {
     setBuild(persistenciaService.obtenerBuildActual());
@@ -59,6 +75,8 @@ export default function App() {
     const nuevaBuild = { ...build, [tipo]: componente };
     setBuild(nuevaBuild);
     persistenciaService.guardarBuildActual(nuevaBuild);
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
   };
 
   const handleVerDetalle = (comp) => {
@@ -67,7 +85,9 @@ export default function App() {
   };
 
   const handleGuardarBuild = async () => {
+    if (guardandoBuild) return;
     setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
     const seleccionados = [build.CPU, build.GPU, build.Placa, build.RAM, build.Fuente];
     if (!usuarioId) {
       setErrorGuardarBuild('La sesión no incluye usuario.id. El login debe devolver ese identificador para asociar la build a tu cuenta.');
@@ -87,15 +107,29 @@ export default function App() {
       fuenteId: build.Fuente.technicalId
     };
 
+    setGuardandoBuild(true);
     try {
-      if (buildEditandoId) await buildsService.actualizar(buildEditandoId, datos);
-      else await buildsService.crear(datos);
-      setBuildEditandoId(null);
+      const resultado = buildEditandoId
+        ? await buildsService.actualizar(buildEditandoId, datos)
+        : await buildsService.crear(datos);
+      if (resultado?.id != null) setBuildEditandoId(resultado.id);
       setRecargaBuilds((actual) => actual + 1);
-      setVista('mis-builds');
+      setMensajeGuardarBuild(buildEditandoId ? 'Los cambios de la build se guardaron correctamente.' : 'La build se guardó correctamente.');
     } catch (error) {
       setErrorGuardarBuild(error.message);
+    } finally {
+      setGuardandoBuild(false);
     }
+  };
+
+  const handleCrearBuild = () => {
+    const buildVacia = crearBuildVacia();
+    setBuild(buildVacia);
+    persistenciaService.guardarBuildActual(buildVacia);
+    setBuildEditandoId(null);
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
+    setVista('armador');
   };
 
   const handleAutenticacion = async ({ email, password, modoRegistro }) => {
@@ -111,12 +145,19 @@ export default function App() {
   const handleCerrarSesion = () => {
     authService.cerrarSesion();
     setSesion(null);
+    const buildVacia = crearBuildVacia();
+    setBuild(buildVacia);
+    persistenciaService.guardarBuildActual(buildVacia);
+    setComponenteSeleccionado(null);
+    setBuildEditandoId(null);
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
     setVista('autenticacion');
   };
 
   return (
     <div className="d-flex flex-column min-vh-100">
-      <Navbar vistaActual={vista} cambiarVista={setVista} sesion={sesion} alCerrarSesion={handleCerrarSesion} totalCarrito={calcularSubtotal(build)} />
+      <Navbar vistaActual={vista} cambiarVista={handleNavegarMenu} sesion={sesion} alCerrarSesion={handleCerrarSesion} totalCarrito={calcularSubtotal(build)} />
       
       <div className="flex-grow-1">
         {vista === 'inicio' && <InicioView alNavegar={setVista} />}
@@ -150,10 +191,13 @@ export default function App() {
             alSeleccionar={handleSeleccionarComponenteBuild}
             alVerCompatibilidad={() => setVista('resultado')}
             alGuardarBuild={handleGuardarBuild}
+            errorGuardado={errorGuardarBuild}
+            mensajeGuardado={mensajeGuardarBuild}
+            guardando={guardandoBuild}
+            alVerMisBuilds={() => handleNavegarMenu('mis-builds')}
           />
         )}
-        {vista === 'armador' && errorGuardarBuild && <div className="container"><div className="alert alert-danger" role="alert">{errorGuardarBuild}</div></div>}
-        {vista === 'mis-builds' && <MisBuildsView key={recargaBuilds} usuarioId={usuarioId} componentes={componentes} alCrearBuild={() => { setBuildEditandoId(null); setVista('armador'); }} alEditar={(buildGuardada, seleccion) => { setBuild(seleccion); setBuildEditandoId(buildGuardada.id); persistenciaService.guardarBuildActual(seleccion); setVista('armador'); }} />}
+        {vista === 'mis-builds' && <MisBuildsView key={recargaBuilds} usuarioId={usuarioId} componentes={componentes} alCrearBuild={handleCrearBuild} alEditar={(buildGuardada, seleccion) => { setBuild(seleccion); setBuildEditandoId(buildGuardada.id); setErrorGuardarBuild(''); setMensajeGuardarBuild(''); persistenciaService.guardarBuildActual(seleccion); setVista('armador'); }} />}
         {vista === 'resultado' && (
           <ResultadoView build={build} alIrACotizar={() => setVista('cotizacion')} />
         )}
