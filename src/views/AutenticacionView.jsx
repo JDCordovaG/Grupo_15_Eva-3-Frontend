@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function AutenticacionView({ alIniciarSesion, alVolver }) {
+export default function AutenticacionView({ alIniciarSesion, alVolver, avisoSesionExpirada, alCerrarAvisoSesionExpirada }) {
   const [modoRegistro, setModoRegistro] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -92,6 +92,10 @@ export default function AutenticacionView({ alIniciarSesion, alVolver }) {
             </form>
             <p className="auth-terms">Al continuar, aceptas nuestros términos de servicio y política de privacidad.</p>
           </div>
+          {avisoSesionExpirada && <div className="alert alert-warning position-relative mx-4 mb-4 pe-5" role="status">
+            <span>Su sesión ha finalizado por seguridad. ¡Por favor, ingrese nuevamente!</span>
+            <button type="button" className="btn-close position-absolute top-0 end-0 m-3" aria-label="Cerrar aviso de sesión expirada" onClick={alCerrarAvisoSesionExpirada} />
+          </div>}
         </section>
       </div>
     </main>

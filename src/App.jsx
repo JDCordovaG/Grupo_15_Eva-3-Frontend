@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/layout/Navbar';
 import InicioView from './views/InicioView';
 import CatalogoView from './views/CatalogoView';
@@ -29,6 +29,7 @@ export default function App() {
   const [build, setBuild] = useState(crearBuildVacia);
   const [componenteSeleccionado, setComponenteSeleccionado] = useState(null);
   const [sesion, setSesion] = useState(() => authService.obtenerSesion());
+  const [avisoSesionExpirada, setAvisoSesionExpirada] = useState(() => authService.hayAvisoSesionExpirada());
   const [errorGuardarBuild, setErrorGuardarBuild] = useState('');
   const [mensajeGuardarBuild, setMensajeGuardarBuild] = useState('');
   const [guardandoBuild, setGuardandoBuild] = useState(false);
@@ -144,9 +145,10 @@ export default function App() {
     setVista('inicio');
   };
 
-  const handleCerrarSesion = () => {
-    authService.cerrarSesion();
+  const handleCerrarSesion = useCallback((expirada = false) => {
+    authService.cerrarSesion({ expirada });
     setSesion(null);
+    setAvisoSesionExpirada(expirada);
     const buildVacia = crearBuildVacia();
     setBuild(buildVacia);
     setComponenteSeleccionado(null);
@@ -154,11 +156,38 @@ export default function App() {
     setErrorGuardarBuild('');
     setMensajeGuardarBuild('');
     setVista('autenticacion');
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!sesion) return undefined;
+    const milisegundosRestantes = Number(sesion.expiresAt) - Date.now();
+    if (!Number.isFinite(milisegundosRestantes) || milisegundosRestantes <= 0) {
+      handleCerrarSesion();
+      return undefined;
+    }
+    const temporizador = window.setTimeout(() => handleCerrarSesion(true), milisegundosRestantes);
+    return () => window.clearTimeout(temporizador);
+  }, [sesion, handleCerrarSesion]);
+
+  useEffect(() => {
+    const sincronizarCierreSesion = (evento) => {
+      if (evento.key !== 'buildmypc_sesion' || evento.newValue) return;
+      let expirada = false;
+      try {
+        const sesionAnterior = JSON.parse(evento.oldValue || 'null');
+        expirada = Number(sesionAnterior?.expiresAt) <= Date.now();
+      } catch {
+        expirada = false;
+      }
+      handleCerrarSesion(expirada);
+    };
+    window.addEventListener('storage', sincronizarCierreSesion);
+    return () => window.removeEventListener('storage', sincronizarCierreSesion);
+  }, [handleCerrarSesion]);
 
   return (
     <div className="d-flex flex-column min-vh-100">
-      <Navbar vistaActual={vista} cambiarVista={handleNavegarMenu} sesion={sesion} alCerrarSesion={handleCerrarSesion} totalCarrito={calcularSubtotal(build)} />
+      <Navbar vistaActual={vista} cambiarVista={handleNavegarMenu} sesion={sesion} alCerrarSesion={() => handleCerrarSesion(false)} totalCarrito={calcularSubtotal(build)} />
       
       <div className="flex-grow-1">
         {vista === 'inicio' && <InicioView alNavegar={setVista} />}
@@ -211,7 +240,7 @@ export default function App() {
           <ResultadoView build={build} alIrACotizar={() => setVista('cotizacion')} />
         )}
         {vista === 'cotizacion' && <CotizacionView build={build} />}
-        {vista === 'autenticacion' && <AutenticacionView alIniciarSesion={handleAutenticacion} alVolver={() => setVista('inicio')} />}
+        {vista === 'autenticacion' && <AutenticacionView alIniciarSesion={handleAutenticacion} alVolver={() => setVista('inicio')} avisoSesionExpirada={avisoSesionExpirada} alCerrarAvisoSesionExpirada={() => { authService.descartarAvisoSesionExpirada(); setAvisoSesionExpirada(false); }} />}
       </div>
     </div>
   );
