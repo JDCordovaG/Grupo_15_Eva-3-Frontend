@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import FiltroCatalogo from '../components/catalogo/FiltroCatalogo';
 import TarjetaComponente from '../components/catalogo/TarjetaComponente';
 
-export default function CatalogoView({ componentes, cargando, error, alReintentar, alSeleccionarComponente, alVerDetalle }) {
+export default function CatalogoView({ componentes, cargando, error, filtroInicial = '', alReintentar, alSeleccionarComponente, alVerDetalle }) {
   const [filtroTipo, setFiltroTipo] = useState('');
   const [busqueda, setBusqueda] = useState('');
+
+  useEffect(() => {
+    setFiltroTipo(filtroInicial);
+  }, [filtroInicial]);
 
   const componentesFiltrados = componentes.filter(comp => {
     const coincideTipo = filtroTipo === '' || comp.tipo === filtroTipo;

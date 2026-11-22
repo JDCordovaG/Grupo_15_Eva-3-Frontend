@@ -21,6 +21,13 @@ export default function AutenticacionView({ alIniciarSesion, alVolver }) {
     setCargando(true);
     try {
       await alIniciarSesion({ email: email.trim(), password, modoRegistro });
+      if (modoRegistro) {
+        setEmail('');
+        setPassword('');
+        setConfirmacion('');
+        setModoRegistro(false);
+        setMensaje('Tu cuenta fue creada. Ya puedes iniciar sesión.');
+      }
     } catch (err) {
       setError(err.message || 'No fue posible completar la autenticación.');
     } finally {
@@ -30,6 +37,9 @@ export default function AutenticacionView({ alIniciarSesion, alVolver }) {
 
   function cambiarModo(registro) {
     setModoRegistro(registro);
+    setEmail('');
+    setPassword('');
+    setConfirmacion('');
     setError('');
     setMensaje('');
   }

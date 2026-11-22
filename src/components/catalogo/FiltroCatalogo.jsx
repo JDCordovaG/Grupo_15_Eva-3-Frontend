@@ -3,7 +3,9 @@ export default function FiltroCatalogo({ filtroTipo, setFiltroTipo, busqueda, se
     <div className="card card-custom p-3 mb-4">
       <div className="row g-3 align-items-center">
         <div className="col-md-6">
+          <label htmlFor="busqueda-catalogo" className="form-label text-light mb-1">Buscar componente</label>
           <input 
+            id="busqueda-catalogo"
             type="text" 
             className="form-control bg-dark text-light border-secondary" 
             placeholder="Buscar por modelo o marca..." 
@@ -12,7 +14,9 @@ export default function FiltroCatalogo({ filtroTipo, setFiltroTipo, busqueda, se
           />
         </div>
         <div className="col-md-6">
+          <label htmlFor="filtro-tipo-catalogo" className="form-label text-light mb-1">Filtrar por categoría</label>
           <select 
+            id="filtro-tipo-catalogo"
             className="form-select bg-dark text-light border-secondary"
             value={filtroTipo}
             onChange={(e) => setFiltroTipo(e.target.value)}

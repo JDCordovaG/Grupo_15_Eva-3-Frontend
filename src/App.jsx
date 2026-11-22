@@ -9,11 +9,12 @@ import DetalleComponenteView from './views/DetalleComponenteView';
 import CategoriasView from './views/CategoriasView';
 import AutenticacionView from './views/AutenticacionView';
 import MisBuildsView from './views/MisBuildsView';
+import PanelOperacionesView from './views/PanelOperacionesView';
 import { authService } from './services/authService';
-import { persistenciaService } from './services/persistenciaService';
 import { componentesService } from './services/componentesService';
 import { buildsService } from './services/buildsService';
 import { calcularSubtotal } from './utils/reglasCompatibilidad';
+import { obtenerRolSesion } from './utils/roles';
 import './App.css';
 
 const crearBuildVacia = () => ({ CPU: null, GPU: null, Placa: null, RAM: null, Fuente: null });
@@ -24,6 +25,7 @@ export default function App() {
   const [cargandoComponentes, setCargandoComponentes] = useState(false);
   const [errorComponentes, setErrorComponentes] = useState('');
   const [recargaCatalogo, setRecargaCatalogo] = useState(0);
+  const [filtroCatalogoInicial, setFiltroCatalogoInicial] = useState('');
   const [build, setBuild] = useState(crearBuildVacia);
   const [componenteSeleccionado, setComponenteSeleccionado] = useState(null);
   const [sesion, setSesion] = useState(() => authService.obtenerSesion());
@@ -32,23 +34,25 @@ export default function App() {
   const [guardandoBuild, setGuardandoBuild] = useState(false);
   const [recargaBuilds, setRecargaBuilds] = useState(0);
   const [buildEditandoId, setBuildEditandoId] = useState(null);
+  const [mensajeAcceso, setMensajeAcceso] = useState('');
   const usuarioId = authService.obtenerUsuarioId(sesion);
+  const rolSesion = obtenerRolSesion(sesion);
 
   const handleNavegarMenu = (vistaNueva) => {
     if (vistaNueva === vista) return;
-    const buildVacia = crearBuildVacia();
-    setBuild(buildVacia);
-    persistenciaService.guardarBuildActual(buildVacia);
+    const rolesRequeridos = { 'panel-admin': 'ADMINISTRADOR', 'bandeja-tecnica': 'TECNICO' };
+    if (rolesRequeridos[vistaNueva] && rolesRequeridos[vistaNueva] !== rolSesion) {
+      setMensajeAcceso('Tu cuenta no tiene permiso para abrir esta sección.');
+      setVista('acceso-denegado');
+      return;
+    }
+    setMensajeAcceso('');
     setComponenteSeleccionado(null);
-    setBuildEditandoId(null);
     setErrorGuardarBuild('');
     setMensajeGuardarBuild('');
+    if (vista === 'catalogo') setFiltroCatalogoInicial('');
     setVista(vistaNueva);
   };
-
-  useEffect(() => {
-    setBuild(persistenciaService.obtenerBuildActual());
-  }, []);
 
   useEffect(() => {
     if (!sesion) {
@@ -74,7 +78,6 @@ export default function App() {
   const handleSeleccionarComponenteBuild = (tipo, componente) => {
     const nuevaBuild = { ...build, [tipo]: componente };
     setBuild(nuevaBuild);
-    persistenciaService.guardarBuildActual(nuevaBuild);
     setErrorGuardarBuild('');
     setMensajeGuardarBuild('');
   };
@@ -125,7 +128,6 @@ export default function App() {
   const handleCrearBuild = () => {
     const buildVacia = crearBuildVacia();
     setBuild(buildVacia);
-    persistenciaService.guardarBuildActual(buildVacia);
     setBuildEditandoId(null);
     setErrorGuardarBuild('');
     setMensajeGuardarBuild('');
@@ -135,7 +137,7 @@ export default function App() {
   const handleAutenticacion = async ({ email, password, modoRegistro }) => {
     if (modoRegistro) {
       await authService.registrar({ email, password });
-      throw new Error('Cuenta creada. El inicio de sesión JWT aún no está disponible en el Backend.');
+      return;
     }
     const nuevaSesion = await authService.iniciarSesion(email, password);
     setSesion(nuevaSesion);
@@ -147,7 +149,6 @@ export default function App() {
     setSesion(null);
     const buildVacia = crearBuildVacia();
     setBuild(buildVacia);
-    persistenciaService.guardarBuildActual(buildVacia);
     setComponenteSeleccionado(null);
     setBuildEditandoId(null);
     setErrorGuardarBuild('');
@@ -166,13 +167,14 @@ export default function App() {
             componentes={componentes} 
             cargando={cargandoComponentes}
             error={errorComponentes}
+            filtroInicial={filtroCatalogoInicial}
             alReintentar={() => setRecargaCatalogo((actual) => actual + 1)}
             alSeleccionarComponente={(c) => handleSeleccionarComponenteBuild(c.tipo, c)} 
             alVerDetalle={handleVerDetalle}
           />
         )}
         {vista === 'categorias' && (
-          <CategoriasView alSeleccionarCategoria={(cat) => setVista('catalogo')} />
+          <CategoriasView alSeleccionarCategoria={(cat) => { setFiltroCatalogoInicial(cat); setVista('catalogo'); }} />
         )}
         {vista === 'detalle' && (
           <DetalleComponenteView 
@@ -197,7 +199,14 @@ export default function App() {
             alVerMisBuilds={() => handleNavegarMenu('mis-builds')}
           />
         )}
-        {vista === 'mis-builds' && <MisBuildsView key={recargaBuilds} usuarioId={usuarioId} componentes={componentes} alCrearBuild={handleCrearBuild} alEditar={(buildGuardada, seleccion) => { setBuild(seleccion); setBuildEditandoId(buildGuardada.id); setErrorGuardarBuild(''); setMensajeGuardarBuild(''); persistenciaService.guardarBuildActual(seleccion); setVista('armador'); }} />}
+        {vista === 'mis-builds' && <MisBuildsView key={recargaBuilds} usuarioId={usuarioId} componentes={componentes} alCrearBuild={handleCrearBuild} alEditar={(buildGuardada, seleccion) => { setBuild(seleccion); setBuildEditandoId(buildGuardada.id); setErrorGuardarBuild(''); setMensajeGuardarBuild(''); setVista('armador'); }} />}
+        {vista === 'panel-admin' && (rolSesion === 'ADMINISTRADOR'
+          ? <PanelOperacionesView sesion={sesion} componentes={componentes} onCatalogoActualizado={() => setRecargaCatalogo((actual) => actual + 1)} />
+          : <main className="container py-5"><div className="alert alert-danger" role="alert"><i className="bi bi-lock me-2" />{mensajeAcceso || 'No tienes permisos para acceder al panel de administración.'}</div></main>)}
+        {vista === 'bandeja-tecnica' && (rolSesion === 'TECNICO'
+          ? <PanelOperacionesView sesion={sesion} componentes={componentes} onCatalogoActualizado={() => setRecargaCatalogo((actual) => actual + 1)} />
+          : <main className="container py-5"><div className="alert alert-danger" role="alert"><i className="bi bi-lock me-2" />{mensajeAcceso || 'No tienes permisos para acceder a la bandeja técnica.'}</div></main>)}
+        {vista === 'acceso-denegado' && <main className="container py-5"><div className="alert alert-danger" role="alert"><i className="bi bi-lock me-2" />{mensajeAcceso || 'Tu cuenta no tiene permiso para abrir esta sección.'}<button className="btn btn-sm btn-outline-light ms-3" type="button" onClick={() => handleNavegarMenu('inicio')}>Volver al inicio</button></div></main>}
         {vista === 'resultado' && (
           <ResultadoView build={build} alIrACotizar={() => setVista('cotizacion')} />
         )}

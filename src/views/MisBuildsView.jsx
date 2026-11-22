@@ -204,6 +204,11 @@ export default function MisBuildsView({ usuarioId, componentes, alEditar, alCrea
                 </div>
 
                 {!precioDisponible && <p className="small text-secondary">No se pudo asociar algún componente con el catálogo actual.</p>}
+                {build.estadoRevision === 'REVISADA' && build.observacionesTecnicas && <section className="alert alert-info mt-2 mb-3" aria-label={`Revisión técnica de la build ${build.id}`}>
+                  <h3 className="h6"><i className="bi bi-clipboard-check me-2" />Revisión técnica</h3>
+                  <p className="mb-0" style={{ whiteSpace: 'pre-wrap' }}>{build.observacionesTecnicas}</p>
+                  {build.fechaActualizacion && <small className="d-block mt-2">Actualizada: {formatearFecha(build.fechaActualizacion)}</small>}
+                </section>}
                 <div className="d-flex flex-wrap gap-2 mt-auto">
                   <button className="btn btn-outline-light flex-grow-1" type="button" disabled={Boolean(accionEnCurso)} onClick={() => alEditar(build, seleccion)}>
                     <i className="bi bi-play-circle me-2" />Continuar
