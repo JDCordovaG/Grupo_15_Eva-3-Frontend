@@ -1,38 +1,39 @@
 import Hero from '../components/layout/Hero';
+import ComponentesDestacados from '../components/layout/ComponentesDestacados';
 import Footer from '../components/layout/Footer';
 
-export default function InicioView({ alNavegar }) {
+export default function InicioView({ alNavegar, componentes, cargando }) {
   return (
-    <div className="container py-4">
-      <Hero alIrAlArmador={() => alNavegar('armador')} />
-      <div className="row text-center g-4 my-4">
-        <div className="col-md-4">
-          <div className="card card-custom p-4 h-100">
-            <i className="bi bi-shield-check text-success display-4 mb-3"></i>
-            <h3>Compatibilidad Real</h3>
-            <p className="">Verificación estricta de sockets, memorias RAM y fuentes de poder automáticamente.</p>
+    <div className="container py-4 home-page">
+      <Hero alIrAlArmador={() => alNavegar('armador')} alIrAlCatalogo={() => alNavegar('catalogo')} />
+      <ComponentesDestacados componentes={componentes} cargando={cargando} alExplorarCatalogo={() => alNavegar('catalogo')} />
+
+      <section className="home-how-it-works" aria-labelledby="como-funciona-titulo">
+        <div className="home-section-heading home-section-heading-centered">
+          <div>
+            <span className="home-section-eyebrow">FÁCIL DE PRINCIPIO A FIN</span>
+            <h2 id="como-funciona-titulo">Tu PC, en tres pasos</h2>
           </div>
         </div>
-        <div className="col-md-4">
-          <div className="card card-custom p-4 h-100">
-            <i className="bi bi-lightning-charge text-warning display-4 mb-3"></i>
-            <h3>Control de Energía</h3>
-            <p className="">Cálculo exacto del TDP para asegurar estabilidad en equipos de alto rendimiento.</p>
-          </div>
+        <div className="row g-3">
+          <div className="col-12 col-md-4"><article className="home-step-card h-100"><span className="home-step-number">01</span><i className="bi bi-motherboard" /><h3>Elige tus piezas</h3><p>Explora el catálogo y agrega los componentes que mejor se ajustan a tu idea.</p></article></div>
+          <div className="col-12 col-md-4"><article className="home-step-card h-100"><span className="home-step-number">02</span><i className="bi bi-check2-circle" /><h3>Revisa compatibilidad</h3><p>Comprueba sockets, memoria y consumo antes de guardar tu configuración.</p></article></div>
+          <div className="col-12 col-md-4"><article className="home-step-card h-100"><span className="home-step-number">03</span><i className="bi bi-bookmark-check" /><h3>Guarda y cotiza</h3><p>Conserva tus builds y consulta el resumen de cada configuración cuando quieras.</p></article></div>
         </div>
-        <div className="col-md-4">
-          <div className="card card-custom p-4 h-100">
-            <i className="bi bi-file-earmark-text text-info display-4 mb-3"></i>
-            <h3>Cotizaciones Claras</h3>
-            <p className="">Genera presupuestos detallados al instante listos para enviar por correo.</p>
-          </div>
+      </section>
+
+      <section className="home-video-section" aria-labelledby="video-titulo">
+        <div className="home-section-heading">
+          <div><span className="home-section-eyebrow">APRENDE A TU RITMO</span><h2 id="video-titulo">¿Primera vez armando un PC?</h2><p>Una guía visual para conocer el proceso de ensamblaje.</p></div>
         </div>
-        <div className="presentacion-video">
-            <h2>¿Cómo funciona BuildMyPC?</h2>
-            <iframe width="100%" height="600" src="https://www.youtube.com/embed/uUGI3Grx4qU" title="Cómo Ensamblar una PC Básica PASO A PASO desde CERO 🔧  Guía 2025 BIEN EXPLICADA" frameborder="0" allowfullscreen></iframe>
+        <div className="home-video-frame">
+          <iframe src="https://www.youtube.com/embed/uUGI3Grx4qU" title="Guía de ensamblaje de PC" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen />
+        </div>
+      </section>
+
+      <div className="home-footer-wrap">
+        <Footer />
       </div>
-      </div>
-      <Footer />
     </div>
   );
 }

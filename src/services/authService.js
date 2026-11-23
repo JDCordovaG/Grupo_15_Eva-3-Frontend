@@ -2,13 +2,19 @@ const TOKEN_KEY = 'buildmypc_token';
 const SESSION_KEY = 'buildmypc_sesion';
 const SESSION_EXPIRED_KEY = 'buildmypc_sesion_expirada';
 import { solicitar } from './apiClient';
-import { obtenerRolSesion } from '../utils/roles';
 
-const DURACION_SESION_MS = {
-  CLIENTE: 5 * 60 * 1000,
-  TECNICO: 10 * 60 * 1000,
-  ADMINISTRADOR: 15 * 60 * 1000
-};
+export function obtenerExpiracionToken(token) {
+  try {
+    const parte = token.split('.')[1];
+    if (!parte) return null;
+    const base64 = parte.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')));
+    const expiracion = Number(payload.exp);
+    return Number.isFinite(expiracion) ? expiracion * 1000 : null;
+  } catch {
+    return null;
+  }
+}
 
 export const authService = {
   async iniciarSesion(email, password) {
@@ -17,21 +23,19 @@ export const authService = {
       body: JSON.stringify({ email, password })
     });
     const token = respuesta.token || respuesta.accessToken;
+    if (!token) throw new Error('El Backend no devolvió un token de acceso.');
 
     const usuario = respuesta.usuario || respuesta.user || {};
     const sesion = {
       ...respuesta,
-      ...(token ? { token } : {}),
+      token,
+      usuario,
       email: usuario.email || respuesta.email || email,
-      usuarioId: usuario.id || usuario.userId || respuesta.usuarioId || respuesta.userId || respuesta.id || null
+      usuarioId: usuario.id || usuario.userId || respuesta.usuarioId || respuesta.userId || respuesta.id || null,
+      rol: usuario.rol || respuesta.rol
     };
-    const rol = obtenerRolSesion(sesion);
-    const duracionMs = DURACION_SESION_MS[rol] || DURACION_SESION_MS.CLIENTE;
-    sesion.iniciadaEn = Date.now();
-    sesion.expiresAt = sesion.iniciadaEn + duracionMs;
     localStorage.removeItem(SESSION_EXPIRED_KEY);
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(SESSION_KEY, JSON.stringify(sesion));
     return sesion;
   },
@@ -51,13 +55,14 @@ export const authService = {
     try {
       const sesion = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
       if (!sesion) return null;
-      const expiracion = Number(sesion.expiresAt);
-      if (!Number.isFinite(expiracion) || expiracion <= Date.now()) {
+      const token = localStorage.getItem(TOKEN_KEY) || sesion.token;
+      const expiracion = token && obtenerExpiracionToken(token);
+      if (!token || !expiracion || expiracion <= Date.now()) {
         authService.cerrarSesion({ expirada: true });
         return null;
       }
-      const token = localStorage.getItem(TOKEN_KEY);
-      return { ...sesion, ...(token ? { token } : {}) };
+      localStorage.setItem(TOKEN_KEY, token);
+      return { ...sesion, token };
     } catch {
       return null;
     }

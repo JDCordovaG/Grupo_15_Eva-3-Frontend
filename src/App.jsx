@@ -10,7 +10,7 @@ import CategoriasView from './views/CategoriasView';
 import AutenticacionView from './views/AutenticacionView';
 import MisBuildsView from './views/MisBuildsView';
 import PanelOperacionesView from './views/PanelOperacionesView';
-import { authService } from './services/authService';
+import { authService, obtenerExpiracionToken } from './services/authService';
 import { componentesService } from './services/componentesService';
 import { buildsService } from './services/buildsService';
 import { calcularSubtotal } from './utils/reglasCompatibilidad';
@@ -159,30 +159,29 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!sesion) return undefined;
-    const milisegundosRestantes = Number(sesion.expiresAt) - Date.now();
-    if (!Number.isFinite(milisegundosRestantes) || milisegundosRestantes <= 0) {
-      handleCerrarSesion();
+    if (!sesion?.token) return undefined;
+    const expiracion = obtenerExpiracionToken(sesion.token);
+    const restante = expiracion == null ? 0 : expiracion - Date.now();
+    if (restante <= 0) {
+      handleCerrarSesion(true);
       return undefined;
     }
-    const temporizador = window.setTimeout(() => handleCerrarSesion(true), milisegundosRestantes);
-    return () => window.clearTimeout(temporizador);
-  }, [sesion, handleCerrarSesion]);
+    const temporizadorExpiracionJwt = window.setTimeout(() => handleCerrarSesion(true), restante);
+    return () => window.clearTimeout(temporizadorExpiracionJwt);
+  }, [sesion?.token, handleCerrarSesion]);
 
   useEffect(() => {
+    const cerrarPorTokenInvalido = () => handleCerrarSesion(true);
     const sincronizarCierreSesion = (evento) => {
       if (evento.key !== 'buildmypc_sesion' || evento.newValue) return;
-      let expirada = false;
-      try {
-        const sesionAnterior = JSON.parse(evento.oldValue || 'null');
-        expirada = Number(sesionAnterior?.expiresAt) <= Date.now();
-      } catch {
-        expirada = false;
-      }
-      handleCerrarSesion(expirada);
+      handleCerrarSesion(authService.hayAvisoSesionExpirada());
     };
+    window.addEventListener('buildmypc:unauthorized', cerrarPorTokenInvalido);
     window.addEventListener('storage', sincronizarCierreSesion);
-    return () => window.removeEventListener('storage', sincronizarCierreSesion);
+    return () => {
+      window.removeEventListener('buildmypc:unauthorized', cerrarPorTokenInvalido);
+      window.removeEventListener('storage', sincronizarCierreSesion);
+    };
   }, [handleCerrarSesion]);
 
   return (
@@ -190,7 +189,7 @@ export default function App() {
       <Navbar vistaActual={vista} cambiarVista={handleNavegarMenu} sesion={sesion} alCerrarSesion={() => handleCerrarSesion(false)} totalCarrito={calcularSubtotal(build)} />
       
       <div className="flex-grow-1">
-        {vista === 'inicio' && <InicioView alNavegar={setVista} />}
+        {vista === 'inicio' && <InicioView alNavegar={setVista} componentes={componentes} cargando={cargandoComponentes} />}
         {vista === 'catalogo' && (
           <CatalogoView 
             componentes={componentes} 
