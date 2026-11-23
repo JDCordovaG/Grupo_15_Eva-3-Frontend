@@ -42,7 +42,7 @@ export default function ResultadoView({ build, alIrACotizar}) {
           ))}
         </ul>
         <button className="btn btn-primary-custom btn-lg w-100" disabled={!esCompatible} onClick={alIrACotizar}>
-          Proceder a Cotizació</button>
+          Proceder a Cotización</button>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/layout/Navbar';
 import InicioView from './views/InicioView';
 import CatalogoView from './views/CatalogoView';
@@ -7,29 +7,80 @@ import ResultadoView from './views/ResultadoView';
 import CotizacionView from './views/CotizacionView';
 import DetalleComponenteView from './views/DetalleComponenteView';
 import CategoriasView from './views/CategoriasView';
-import { persistenciaService } from './services/persistenciaService';
-import { DATOS_INICIALES_CATALOGO } from './services/datosSimulados';
+import AutenticacionView from './views/AutenticacionView';
+import MisBuildsView from './views/MisBuildsView';
+import PanelOperacionesView from './views/PanelOperacionesView';
+import { authService, obtenerExpiracionToken } from './services/authService';
+import { componentesService } from './services/componentesService';
+import { buildsService } from './services/buildsService';
 import { calcularSubtotal } from './utils/reglasCompatibilidad';
+import { obtenerRolSesion } from './utils/roles';
 import './App.css';
 
+const crearBuildVacia = () => ({ CPU: null, GPU: null, Placa: null, RAM: null, Fuente: null });
+
 export default function App() {
-  const [vista, setVista] = useState('inicio');
+  const [vista, setVista] = useState(() => authService.obtenerSesion() ? 'inicio' : 'autenticacion');
   const [componentes, setComponentes] = useState([]);
-  const [build, setBuild] = useState({ CPU: null, GPU: null, Placa: null, RAM: null, Fuente: null });
+  const [cargandoComponentes, setCargandoComponentes] = useState(false);
+  const [errorComponentes, setErrorComponentes] = useState('');
+  const [recargaCatalogo, setRecargaCatalogo] = useState(0);
+  const [filtroCatalogoInicial, setFiltroCatalogoInicial] = useState('');
+  const [build, setBuild] = useState(crearBuildVacia);
   const [componenteSeleccionado, setComponenteSeleccionado] = useState(null);
+  const [sesion, setSesion] = useState(() => authService.obtenerSesion());
+  const [avisoSesionExpirada, setAvisoSesionExpirada] = useState(() => authService.hayAvisoSesionExpirada());
+  const [errorGuardarBuild, setErrorGuardarBuild] = useState('');
+  const [mensajeGuardarBuild, setMensajeGuardarBuild] = useState('');
+  const [guardandoBuild, setGuardandoBuild] = useState(false);
+  const [recargaBuilds, setRecargaBuilds] = useState(0);
+  const [buildEditandoId, setBuildEditandoId] = useState(null);
+  const [mensajeAcceso, setMensajeAcceso] = useState('');
+  const usuarioId = authService.obtenerUsuarioId(sesion);
+  const rolSesion = obtenerRolSesion(sesion);
+
+  const handleNavegarMenu = (vistaNueva) => {
+    if (vistaNueva === vista) return;
+    const rolesRequeridos = { 'panel-admin': 'ADMINISTRADOR', 'bandeja-tecnica': 'TECNICO' };
+    if (rolesRequeridos[vistaNueva] && rolesRequeridos[vistaNueva] !== rolSesion) {
+      setMensajeAcceso('Tu cuenta no tiene permiso para abrir esta sección.');
+      setVista('acceso-denegado');
+      return;
+    }
+    setMensajeAcceso('');
+    setComponenteSeleccionado(null);
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
+    if (vista === 'catalogo') setFiltroCatalogoInicial('');
+    setVista(vistaNueva);
+  };
 
   useEffect(() => {
-    if (!localStorage.getItem('buildmypc_componentes')) {
-      localStorage.setItem('buildmypc_componentes', JSON.stringify(DATOS_INICIALES_CATALOGO));
+    if (!sesion) {
+      setComponentes([]);
+      return undefined;
     }
-    setComponentes(persistenciaService.obtenerComponentes());
-    setBuild(persistenciaService.obtenerBuildActual());
-  }, []);
+
+    const control = new AbortController();
+    setCargandoComponentes(true);
+    setErrorComponentes('');
+    componentesService.listar({ signal: control.signal })
+      .then(setComponentes)
+      .catch((error) => {
+        if (error.name !== 'AbortError') setErrorComponentes(error.message);
+      })
+      .finally(() => {
+        if (!control.signal.aborted) setCargandoComponentes(false);
+      });
+
+    return () => control.abort();
+  }, [sesion, recargaCatalogo]);
 
   const handleSeleccionarComponenteBuild = (tipo, componente) => {
     const nuevaBuild = { ...build, [tipo]: componente };
     setBuild(nuevaBuild);
-    persistenciaService.guardarBuildActual(nuevaBuild);
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
   };
 
   const handleVerDetalle = (comp) => {
@@ -37,21 +88,121 @@ export default function App() {
     setVista('detalle');
   };
 
+  const handleGuardarBuild = async () => {
+    if (guardandoBuild) return;
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
+    const seleccionados = [build.CPU, build.GPU, build.Placa, build.RAM, build.Fuente];
+    if (!usuarioId) {
+      setErrorGuardarBuild('La sesión no incluye usuario.id. El login debe devolver ese identificador para asociar la build a tu cuenta.');
+      return;
+    }
+    if (seleccionados.some((componente) => !componente?.technicalId)) {
+      setErrorGuardarBuild('Faltan datos técnicos de uno o más componentes. Revisa que cada producto tenga su registro técnico en el Backend.');
+      return;
+    }
+
+    const datos = {
+      usuarioId,
+      cpuId: build.CPU.technicalId,
+      gpuId: build.GPU.technicalId,
+      motherboardId: build.Placa.technicalId,
+      ramId: build.RAM.technicalId,
+      fuenteId: build.Fuente.technicalId
+    };
+
+    setGuardandoBuild(true);
+    try {
+      const resultado = buildEditandoId
+        ? await buildsService.actualizar(buildEditandoId, datos)
+        : await buildsService.crear(datos);
+      if (resultado?.id != null) setBuildEditandoId(resultado.id);
+      setRecargaBuilds((actual) => actual + 1);
+      setMensajeGuardarBuild(buildEditandoId ? 'Los cambios de la build se guardaron correctamente.' : 'La build se guardó correctamente.');
+    } catch (error) {
+      setErrorGuardarBuild(error.message);
+    } finally {
+      setGuardandoBuild(false);
+    }
+  };
+
+  const handleCrearBuild = () => {
+    const buildVacia = crearBuildVacia();
+    setBuild(buildVacia);
+    setBuildEditandoId(null);
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
+    setVista('armador');
+  };
+
+  const handleAutenticacion = async ({ email, password, modoRegistro }) => {
+    if (modoRegistro) {
+      await authService.registrar({ email, password });
+      return;
+    }
+    const nuevaSesion = await authService.iniciarSesion(email, password);
+    setSesion(nuevaSesion);
+    setVista('inicio');
+  };
+
+  const handleCerrarSesion = useCallback((expirada = false) => {
+    authService.cerrarSesion({ expirada });
+    setSesion(null);
+    setAvisoSesionExpirada(expirada);
+    const buildVacia = crearBuildVacia();
+    setBuild(buildVacia);
+    setComponenteSeleccionado(null);
+    setBuildEditandoId(null);
+    setErrorGuardarBuild('');
+    setMensajeGuardarBuild('');
+    setVista('autenticacion');
+  }, []);
+
+  useEffect(() => {
+    if (!sesion?.token) return undefined;
+    const expiracion = obtenerExpiracionToken(sesion.token);
+    const restante = expiracion == null ? 0 : expiracion - Date.now();
+    if (restante <= 0) {
+      handleCerrarSesion(true);
+      return undefined;
+    }
+    const temporizadorExpiracionJwt = window.setTimeout(() => handleCerrarSesion(true), restante);
+    return () => window.clearTimeout(temporizadorExpiracionJwt);
+  }, [sesion?.token, handleCerrarSesion]);
+
+  useEffect(() => {
+    const cerrarPorTokenInvalido = () => handleCerrarSesion(true);
+    const sincronizarCierreSesion = (evento) => {
+      if (evento.key !== 'buildmypc_sesion' || evento.newValue) return;
+      handleCerrarSesion(authService.hayAvisoSesionExpirada());
+    };
+    window.addEventListener('buildmypc:unauthorized', cerrarPorTokenInvalido);
+    window.addEventListener('storage', sincronizarCierreSesion);
+    return () => {
+      window.removeEventListener('buildmypc:unauthorized', cerrarPorTokenInvalido);
+      window.removeEventListener('storage', sincronizarCierreSesion);
+    };
+  }, [handleCerrarSesion]);
+
   return (
     <div className="d-flex flex-column min-vh-100">
-      <Navbar vistaActual={vista} cambiarVista={setVista} totalCarrito={calcularSubtotal(build)} />
+      <Navbar vistaActual={vista} cambiarVista={handleNavegarMenu} sesion={sesion} alCerrarSesion={() => handleCerrarSesion(false)} totalCarrito={calcularSubtotal(build)} />
       
       <div className="flex-grow-1">
-        {vista === 'inicio' && <InicioView alNavegar={setVista} />}
+        {vista === 'inicio' && <InicioView alNavegar={setVista} componentes={componentes} cargando={cargandoComponentes} />}
         {vista === 'catalogo' && (
           <CatalogoView 
             componentes={componentes} 
+            cargando={cargandoComponentes}
+            error={errorComponentes}
+            filtroInicial={filtroCatalogoInicial}
+            alReintentar={() => setRecargaCatalogo((actual) => actual + 1)}
             alSeleccionarComponente={(c) => handleSeleccionarComponenteBuild(c.tipo, c)} 
             alVerDetalle={handleVerDetalle}
           />
         )}
         {vista === 'categorias' && (
-          <CategoriasView alSeleccionarCategoria={(cat) => setVista('catalogo')} />
+          <CategoriasView alSeleccionarCategoria={(cat) => { setFiltroCatalogoInicial(cat); setVista('catalogo'); }} />
         )}
         {vista === 'detalle' && (
           <DetalleComponenteView 
@@ -69,12 +220,26 @@ export default function App() {
             build={build} 
             alSeleccionar={handleSeleccionarComponenteBuild}
             alVerCompatibilidad={() => setVista('resultado')}
+            alGuardarBuild={handleGuardarBuild}
+            errorGuardado={errorGuardarBuild}
+            mensajeGuardado={mensajeGuardarBuild}
+            guardando={guardandoBuild}
+            alVerMisBuilds={() => handleNavegarMenu('mis-builds')}
           />
         )}
+        {vista === 'mis-builds' && <MisBuildsView key={recargaBuilds} usuarioId={usuarioId} componentes={componentes} alCrearBuild={handleCrearBuild} alEditar={(buildGuardada, seleccion) => { setBuild(seleccion); setBuildEditandoId(buildGuardada.id); setErrorGuardarBuild(''); setMensajeGuardarBuild(''); setVista('armador'); }} />}
+        {vista === 'panel-admin' && (rolSesion === 'ADMINISTRADOR'
+          ? <PanelOperacionesView sesion={sesion} componentes={componentes} onCatalogoActualizado={() => setRecargaCatalogo((actual) => actual + 1)} />
+          : <main className="container py-5"><div className="alert alert-danger" role="alert"><i className="bi bi-lock me-2" />{mensajeAcceso || 'No tienes permisos para acceder al panel de administración.'}</div></main>)}
+        {vista === 'bandeja-tecnica' && (rolSesion === 'TECNICO'
+          ? <PanelOperacionesView sesion={sesion} componentes={componentes} onCatalogoActualizado={() => setRecargaCatalogo((actual) => actual + 1)} />
+          : <main className="container py-5"><div className="alert alert-danger" role="alert"><i className="bi bi-lock me-2" />{mensajeAcceso || 'No tienes permisos para acceder a la bandeja técnica.'}</div></main>)}
+        {vista === 'acceso-denegado' && <main className="container py-5"><div className="alert alert-danger" role="alert"><i className="bi bi-lock me-2" />{mensajeAcceso || 'Tu cuenta no tiene permiso para abrir esta sección.'}<button className="btn btn-sm btn-outline-light ms-3" type="button" onClick={() => handleNavegarMenu('inicio')}>Volver al inicio</button></div></main>}
         {vista === 'resultado' && (
           <ResultadoView build={build} alIrACotizar={() => setVista('cotizacion')} />
         )}
         {vista === 'cotizacion' && <CotizacionView build={build} />}
+        {vista === 'autenticacion' && <AutenticacionView alIniciarSesion={handleAutenticacion} alVolver={() => setVista('inicio')} avisoSesionExpirada={avisoSesionExpirada} alCerrarAvisoSesionExpirada={() => { authService.descartarAvisoSesionExpirada(); setAvisoSesionExpirada(false); }} />}
       </div>
     </div>
   );
