@@ -44,6 +44,12 @@ npm -v
 
    La variable debe apuntar al Gateway y terminar en `/api`. No incluyas credenciales, tokens ni secretos en variables `VITE_*`.
 
+### Publicación en Vercel
+
+Importa el repositorio desde GitHub en Vercel y usa la carpeta raíz del proyecto. Vercel detecta Vite; los comandos son `npm run build` y `dist`. En **Settings → Environment Variables**, define `VITE_API_URL` con la URL HTTPS pública del Gateway terminada en `/api`, por ejemplo `https://mi-gateway.onrender.com/api`. Después de agregar o cambiar esta variable, vuelve a desplegar para que Vite la incluya en el sitio.
+
+El archivo `vercel.json` envía las rutas de React Router a `index.html`, por lo que abrir o recargar una ruta interna no produce un 404 de Vercel. El Gateway debe permitir el dominio de producción de Vercel en `CORS_ORIGENES`.
+
 4. Inicia el servidor de desarrollo:
 
    ```bash
