@@ -1,4 +1,6 @@
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD
+  ? 'https://buildmypc-g15-gateway.onrender.com/api'
+  : 'http://localhost:8080/api')).replace(/\/$/, '');
 
 function tokenExpirado(token) {
   try {
@@ -40,7 +42,7 @@ export async function solicitar(ruta, opciones = {}) {
     });
   } catch (error) {
     if (error.name === 'AbortError') throw error;
-    throw new Error(`No se pudo conectar con el Backend (${API_URL}). Verifica que Eureka y el gateway estén activos.`);
+    throw new Error(`No se pudo conectar con el Backend (${API_URL}). Verifica que el gateway y los servicios estén disponibles.`);
   }
 
   if (respuesta.status === 204) return null;
